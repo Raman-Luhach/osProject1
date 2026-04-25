@@ -1,94 +1,146 @@
-/* ========================================================================== */
-/*                          CUSTOM MATH LIBRARY                              */
-/*                                                                           */
-/*  Implementation of basic arithmetic and boundary-checking functions.      */
-/*  All functions guard against invalid inputs (e.g., division by zero).     */
-/* ========================================================================== */
-
 #include "../math/math.h"
 
-/* -------------------------------------------------------------------------- */
-/*  custom_multiply                                                          */
-/*  Returns the product of a and b.                                          */
-/* -------------------------------------------------------------------------- */
+/* Multiplication using shift-and-add (binary multiplication)
+   Same algorithm a CPU's ALU uses internally */
 int custom_multiply(int a, int b)
 {
-    return a * b;
+    int result = 0;
+    int negative = 0;
+
+    if (a == 0 || b == 0)
+        return 0;
+
+    if (a < 0)
+    {
+        negative = !negative;
+        a = -a;
+    }
+    if (b < 0)
+    {
+        negative = !negative;
+        b = -b;
+    }
+
+    /* Shift-and-add: for each set bit in b, add a shifted left by that position */
+    while (b > 0)
+    {
+        if (b & 1)
+            result = result + a;
+        a = a << 1;
+        b = b >> 1;
+    }
+
+    if (negative)
+        return -result;
+    return result;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  custom_divide                                                            */
-/*  Returns a / b.  If b is zero, returns 0 to prevent crashes.             */
-/* -------------------------------------------------------------------------- */
+/* Division using bit-shift subtraction (binary long division) */
 int custom_divide(int a, int b)
 {
+    int quotient = 0;
+    int negative = 0;
+    int shift;
+
     if (b == 0)
         return 0;
-    return a / b;
+    if (a == 0)
+        return 0;
+
+    if (a < 0)
+    {
+        negative = !negative;
+        a = -a;
+    }
+    if (b < 0)
+    {
+        negative = !negative;
+        b = -b;
+    }
+
+    /* Find the highest bit position where b << shift <= a */
+    for (shift = 0; (b << shift) <= a && shift < 31; shift++)
+        ;
+    shift--;
+
+    /* Binary long division: try subtracting b<<shift from a for each shift */
+    while (shift >= 0)
+    {
+        if (a >= (b << shift))
+        {
+            a = a - (b << shift);
+            quotient = quotient | (1 << shift);
+        }
+        shift--;
+    }
+
+    if (negative)
+        return -quotient;
+    return quotient;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  custom_modulo                                                            */
-/*  Returns a % b.  If b is zero, returns 0 to prevent crashes.             */
-/* -------------------------------------------------------------------------- */
+/* Modulo: a - (a/b)*b using our binary division */
 int custom_modulo(int a, int b)
 {
+    int negative = 0;
+    int q;
+    int result;
+
     if (b == 0)
         return 0;
-    return a % b;
+
+    if (a < 0)
+    {
+        negative = 1;
+        a = -a;
+    }
+    if (b < 0)
+        b = -b;
+
+    q = custom_divide(a, b);
+    result = a - custom_multiply(q, b);
+
+    if (negative)
+        return -result;
+    return result;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  custom_abs                                                               */
-/*  Returns the absolute value of the given integer.                         */
-/* -------------------------------------------------------------------------- */
+/* Absolute value using bit manipulation:
+   mask = value >> 31 gives all 1s if negative, all 0s if positive
+   (value ^ mask) - mask flips and adds 1 for negative numbers */
 int custom_abs(int value)
 {
-    if (value < 0)
-        return -value;
+    int mask = value >> 31;
+    return (value ^ mask) - mask;
+}
+
+/* Min without branching using bit manipulation */
+int custom_min(int a, int b)
+{
+    int diff = a - b;
+    int sign = (diff >> 31) & 1;
+    /* sign is 1 if a < b, 0 if a >= b */
+    return b + (diff & (-sign));
+}
+
+/* Max without branching */
+int custom_max(int a, int b)
+{
+    int diff = a - b;
+    int sign = (diff >> 31) & 1;
+    /* sign is 1 if a < b (so b is max), 0 if a >= b (so a is max) */
+    return a - (diff & (-sign));
+}
+
+int clamp(int value, int min_val, int max_val)
+{
+    if (value < min_val)
+        return min_val;
+    if (value > max_val)
+        return max_val;
     return value;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  custom_min                                                               */
-/*  Returns the smaller of two integers.                                     */
-/* -------------------------------------------------------------------------- */
-int custom_min(int a, int b)
-{
-    if (a < b)
-        return a;
-    return b;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  custom_max                                                               */
-/*  Returns the larger of two integers.                                      */
-/* -------------------------------------------------------------------------- */
-int custom_max(int a, int b)
-{
-    if (a > b)
-        return a;
-    return b;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  clamp                                                                    */
-/*  Restricts 'value' to the range [min_val, max_val].                      */
-/*  If value < min_val, returns min_val.                                     */
-/*  If value > max_val, returns max_val.                                     */
-/*  Otherwise, returns value unchanged.                                      */
-/* -------------------------------------------------------------------------- */
-int clamp(int value, int min_val, int max_val)
-{
-    return custom_max(min_val, custom_min(value, max_val));
-}
-
-/* -------------------------------------------------------------------------- */
-/*  is_in_bounds                                                             */
-/*  Checks if the point (x, y) lies within the rectangle defined by:        */
-/*    min_x <= x <= max_x   AND   min_y <= y <= max_y                       */
-/*  Returns 1 if inside bounds, 0 otherwise.                                */
-/* -------------------------------------------------------------------------- */
 int is_in_bounds(int x, int y, int min_x, int min_y, int max_x, int max_y)
 {
     if (x >= min_x && x <= max_x && y >= min_y && y <= max_y)
