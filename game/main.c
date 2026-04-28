@@ -1,17 +1,3 @@
-/* ========================================================================== */
-/*                        VASUKI - TERMINAL SNAKE GAME                       */
-/*                                                                           */
-/*  Entry point for the Vasuki snake game.                                   */
-/*  Handles: welcome screen, game loop, game over screen.                   */
-/*                                                                           */
-/*  Library Pipeline (every library is used):                                */
-/*    keyboard.c -> captures input (non-blocking)                           */
-/*    string.c   -> parses/formats text (score display, etc.)               */
-/*    memory.c   -> custom allocator (initialized at startup, used in game) */
-/*    math.c     -> boundary checks, arithmetic                              */
-/*    screen.c   -> all terminal rendering                                   */
-/* ========================================================================== */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -22,28 +8,43 @@
 #include "../screen/screen.h"
 #include "../keyboard/keyboard.h"
 #include "../game/game.h"
+#include "../timer/timer.h"
+#include "../random/random.h"
+#include "../fileio/fileio.h"
+#include "../audio/audio.h"
 
-/* Frame delay in microseconds (100,000 us = 100 ms = ~10 FPS). */
-#define FRAME_DELAY_US  100000
+/* All config constants come from config/config.h via game.h */
 
-/* ========================================================================== */
-/*                           WELCOME SCREEN                                  */
-/* ========================================================================== */
+static int get_frame_delay(GameState *state)
+{
+    int delay = state->frame_delay;
 
-/* -------------------------------------------------------------------------- */
-/*  show_welcome_screen                                                      */
-/*  Displays an attractive ASCII art title, game controls, and waits for    */
-/*  the player to press ENTER before starting the game.                     */
-/* -------------------------------------------------------------------------- */
+    if (state->snake.direction == DIR_UP || state->snake.direction == DIR_DOWN)
+        delay = custom_divide(custom_multiply(delay, VERTICAL_SPEED_FACTOR_NUM), VERTICAL_SPEED_FACTOR_DEN);
+
+    return delay;
+}
+
+static int load_high_score(void)
+{
+    int hs = 0;
+    file_load_int(HIGH_SCORE_FILE, &hs);
+    return hs;
+}
+
+static void save_high_score(int score)
+{
+    file_save_int(HIGH_SCORE_FILE, score);
+}
+
 static void show_welcome_screen(void)
 {
     int key;
-    int blink_on;
+    int blink_on = 1;
 
     screen_clear();
     screen_hide_cursor();
 
-    /* ---- Large ASCII Art Title: VASUKI ---- */
     screen_draw_string_color(11, 2,
         "__     __    _    ____  _   _ _  ___ ___", COLOR_BRIGHT_GREEN);
     screen_draw_string_color(11, 3,
@@ -55,25 +56,22 @@ static void show_welcome_screen(void)
     screen_draw_string_color(11, 6,
         "   \\_/   /_/   \\_\\____/ \\___/|_|\\_\\|___|", COLOR_BRIGHT_GREEN);
 
-    /* ---- Subtitle ---- */
     screen_draw_string_color(18, 8,
         "--- The Serpent King of Terminal ---", COLOR_BRIGHT_CYAN);
 
-    /* ---- Decorative snake ---- */
     screen_draw_string_color(20, 10,
         "~-~-~-~=<@>", COLOR_BRIGHT_GREEN);
-    screen_draw_string_color(15, 11,
-        "\"The king of serpents awaits...\"", COLOR_DIM);
 
-    /* ---- Controls Box ---- */
-    screen_draw_string_color(16, 13,
+    screen_draw_string_color(16, 12,
         "+================================+", COLOR_YELLOW);
-    screen_draw_string_color(16, 14,
+    screen_draw_string_color(16, 13,
         "|                                |", COLOR_YELLOW);
-    screen_draw_string_color(16, 15,
+    screen_draw_string_color(16, 14,
         "|   [W/A/S/D]  Move Vasuki       |", COLOR_YELLOW);
-    screen_draw_string_color(16, 16,
+    screen_draw_string_color(16, 15,
         "|   [Arrows]   Also Move         |", COLOR_YELLOW);
+    screen_draw_string_color(16, 16,
+        "|   [P]        Pause             |", COLOR_YELLOW);
     screen_draw_string_color(16, 17,
         "|   [Q / ESC]  Quit Game         |", COLOR_YELLOW);
     screen_draw_string_color(16, 18,
@@ -81,38 +79,41 @@ static void show_welcome_screen(void)
     screen_draw_string_color(16, 19,
         "+================================+", COLOR_YELLOW);
 
-    /* Overwrite the text inside the box with white for readability */
-    screen_draw_string_color(20, 15,
+    screen_draw_string_color(20, 14,
         "[W/A/S/D]  Move Vasuki", COLOR_BRIGHT_WHITE);
-    screen_draw_string_color(20, 16,
+    screen_draw_string_color(20, 15,
         "[Arrows]   Also Move", COLOR_BRIGHT_WHITE);
+    screen_draw_string_color(20, 16,
+        "[P]        Pause", COLOR_BRIGHT_WHITE);
     screen_draw_string_color(20, 17,
         "[Q / ESC]  Quit Game", COLOR_BRIGHT_WHITE);
 
-    /* ---- Team Credit ---- */
-    screen_draw_string_color(17, 21,
-        "Team Vasuki | OS Final Project", COLOR_DIM);
+    {
+        int hs = load_high_score();
+        if (hs > 0)
+        {
+            char hs_text[32];
+            char hs_num[16];
+            str_copy(hs_text, "High Score: ");
+            int_to_string(hs, hs_num, 16);
+            str_concat(hs_text, hs_num);
+            screen_draw_string_color(22, 21, hs_text, COLOR_BRIGHT_YELLOW);
+        }
+    }
 
-    /* ---- Blinking "Press ENTER" prompt ---- */
-    /* Alternate between showing and hiding the prompt for a blink effect. */
-    blink_on = 1;
+    screen_draw_string_color(17, 23,
+        "Team Vasuki | OS Final Project", COLOR_DIM);
 
     while (1)
     {
-        /* Draw or erase the prompt based on blink state */
         if (blink_on)
-        {
-            screen_draw_string_color(19, 23,
+            screen_draw_string_color(19, 25,
                 ">>> Press ENTER to start <<<", COLOR_BRIGHT_WHITE);
-        }
         else
-        {
-            screen_draw_string(19, 23,
+            screen_draw_string(19, 25,
                 "                            ");
-        }
         screen_flush();
 
-        /* Check for key press (non-blocking, check several times per blink) */
         {
             int check;
             for (check = 0; check < 5; check++)
@@ -127,32 +128,165 @@ static void show_welcome_screen(void)
                     keyboard_restore();
                     exit(0);
                 }
-                usleep(100000);  /* 100ms between checks */
+                usleep(100000);
             }
         }
-
-        /* Toggle blink every ~500ms (5 checks * 100ms) */
         blink_on = !blink_on;
     }
 }
 
-/* ========================================================================== */
-/*                          GAME OVER SCREEN                                 */
-/* ========================================================================== */
+static int show_mode_select(void)
+{
+    int key;
 
-/* -------------------------------------------------------------------------- */
-/*  show_game_over_screen                                                    */
-/*  Displays the final score and waits for the player to press a key.       */
-/*  Returns 1 if the player wants to play again (ENTER), 0 to quit (Q).    */
-/* -------------------------------------------------------------------------- */
-static int show_game_over_screen(int final_score)
+    screen_clear();
+    screen_hide_cursor();
+
+    screen_draw_string_color(20, 5,
+        "=*= SELECT GAME MODE =*=", COLOR_BRIGHT_GREEN);
+
+    screen_draw_string_color(18, 9,
+        "[1]  ENDLESS MODE", COLOR_BRIGHT_CYAN);
+    screen_draw_string_color(18, 10,
+        "     Pick a level, speed increases over time.", COLOR_DIM);
+    screen_draw_string_color(18, 11,
+        "     Survive as long as you can!", COLOR_DIM);
+
+    screen_draw_string_color(18, 14,
+        "[2]  LEVEL MODE", COLOR_BRIGHT_YELLOW);
+    screen_draw_string_color(18, 15,
+        "     5 levels with obstacles and goals.", COLOR_DIM);
+    screen_draw_string_color(18, 16,
+        "     Reach the target score to advance!", COLOR_DIM);
+
+    screen_draw_string_color(18, 19,
+        "Press 1 or 2 to choose...", COLOR_BRIGHT_WHITE);
+    screen_flush();
+
+    while (1)
+    {
+        key = keyboard_pressed();
+        if (key == '1')
+            return MODE_ENDLESS;
+        if (key == '2')
+            return MODE_LEVELS;
+        if (key == 'q' || key == 'Q' || key == KEY_ESCAPE)
+        {
+            screen_clear();
+            screen_show_cursor();
+            keyboard_restore();
+            exit(0);
+        }
+        usleep(50000);
+    }
+}
+
+/* Let the player pick which level layout to play in endless mode */
+static int show_endless_level_select(void)
+{
+    int key;
+
+    screen_clear();
+    screen_hide_cursor();
+
+    screen_draw_string_color(18, 4,
+        "=*= CHOOSE YOUR ARENA =*=", COLOR_BRIGHT_GREEN);
+
+    screen_draw_string_color(14, 7,
+        "[1]  Wrap Around", COLOR_BRIGHT_CYAN);
+    screen_draw_string_color(14, 8,
+        "     No walls - go through edges. Easy start.", COLOR_DIM);
+
+    screen_draw_string_color(14, 10,
+        "[2]  Classic Walls", COLOR_BRIGHT_YELLOW);
+    screen_draw_string_color(14, 11,
+        "     Hit a wall and you die. No obstacles.", COLOR_DIM);
+
+    screen_draw_string_color(14, 13,
+        "[3]  Horizontal Barrier", COLOR_GREEN);
+    screen_draw_string_color(14, 14,
+        "     A wall cuts across the middle.", COLOR_DIM);
+
+    screen_draw_string_color(14, 16,
+        "[4]  Twin Pillars + Wrap", COLOR_MAGENTA);
+    screen_draw_string_color(14, 17,
+        "     Two vertical walls with wrap-around.", COLOR_DIM);
+
+    screen_draw_string_color(14, 19,
+        "[5]  The Box", COLOR_BRIGHT_RED);
+    screen_draw_string_color(14, 20,
+        "     Box obstacle in center. No wrap. Fast.", COLOR_DIM);
+
+    screen_draw_string_color(18, 23,
+        "Press 1-5 to choose...", COLOR_BRIGHT_WHITE);
+    screen_flush();
+
+    while (1)
+    {
+        key = keyboard_pressed();
+        if (key >= '1' && key <= '5')
+            return key - '1';
+        if (key == 'q' || key == 'Q' || key == KEY_ESCAPE)
+        {
+            screen_clear();
+            screen_show_cursor();
+            keyboard_restore();
+            exit(0);
+        }
+        usleep(50000);
+    }
+}
+
+static void show_death_flash(void)
+{
+    int i;
+
+    for (i = 0; i < 3; i++)
+    {
+        screen_draw_box_color(GAME_AREA_X - 1, GAME_AREA_Y - 1,
+                              GAME_AREA_WIDTH + 2, GAME_AREA_HEIGHT + 2,
+                              COLOR_BRIGHT_RED);
+        screen_flush();
+        usleep(80000);
+        screen_draw_box_color(GAME_AREA_X - 1, GAME_AREA_Y - 1,
+                              GAME_AREA_WIDTH + 2, GAME_AREA_HEIGHT + 2,
+                              COLOR_CYAN);
+        screen_flush();
+        usleep(80000);
+    }
+}
+
+static void show_level_complete(int level)
+{
+    char msg[32];
+    char num[4];
+
+    str_copy(msg, "LEVEL ");
+    int_to_string(level + 1, num, 4);
+    str_concat(msg, num);
+    str_concat(msg, " COMPLETE!");
+
+    screen_draw_string_color(GAME_AREA_X + 18, GAME_AREA_Y + 9,
+        "+==================+", COLOR_BRIGHT_GREEN);
+    screen_draw_string_color(GAME_AREA_X + 18, GAME_AREA_Y + 10,
+        "|                  |", COLOR_BRIGHT_GREEN);
+    screen_draw_string_color(GAME_AREA_X + 20, GAME_AREA_Y + 10,
+        msg, COLOR_BRIGHT_YELLOW);
+    screen_draw_string_color(GAME_AREA_X + 18, GAME_AREA_Y + 11,
+        "+==================+", COLOR_BRIGHT_GREEN);
+    screen_flush();
+    audio_play("sounds/level.wav");
+    usleep(2000000);
+}
+
+static int show_game_over_screen(int final_score, int high_score)
 {
     int  key;
     char score_str[16];
+    char hs_str[16];
 
     screen_clear();
 
-    /* ---- Game Over ASCII Art ---- */
     screen_draw_string_color(12, 5,
         "  ____    _    __  __ _____    _____     _______ ____  ",
         COLOR_BRIGHT_RED);
@@ -169,100 +303,150 @@ static int show_game_over_screen(int final_score)
         " \\____/_/   \\_\\_|  |_|_____|  \\___/  \\_/  |_____|_| \\_\\",
         COLOR_BRIGHT_RED);
 
-    /* ---- Final Score ---- */
     int_to_string(final_score, score_str, 16);
+    int_to_string(high_score, hs_str, 16);
 
-    screen_draw_string_color(26, 12, "Your Final Score: ", COLOR_BRIGHT_YELLOW);
-    screen_draw_string_color(44, 12, score_str, COLOR_BRIGHT_WHITE);
+    screen_draw_string_color(26, 12, "Your Score: ", COLOR_BRIGHT_YELLOW);
+    screen_draw_string_color(38, 12, score_str, COLOR_BRIGHT_WHITE);
 
-    /* ---- Decorative dead snake ---- */
-    screen_draw_string_color(24, 14,
+    screen_draw_string_color(26, 13, "High Score: ", COLOR_DIM);
+    screen_draw_string_color(38, 13, hs_str, COLOR_BRIGHT_YELLOW);
+
+    if (final_score >= high_score && final_score > 0)
+        screen_draw_string_color(26, 14,
+            "*** NEW HIGH SCORE! ***", COLOR_BRIGHT_MAGENTA);
+
+    screen_draw_string_color(24, 16,
         "x~-~-~-~=<X>  Vasuki has fallen...", COLOR_DIM);
 
-    /* ---- Options ---- */
-    screen_draw_string_color(20, 17,
+    screen_draw_string_color(20, 19,
         "[ENTER]  Play Again", COLOR_BRIGHT_GREEN);
-    screen_draw_string_color(20, 18,
+    screen_draw_string_color(20, 20,
         "[Q]      Quit", COLOR_BRIGHT_RED);
-
     screen_flush();
 
-    /* Wait for player decision */
     while (1)
     {
         key = keyboard_pressed();
         if (key == KEY_ENTER || key == '\r' || key == '\n')
-            return 1;   /* Play again */
+            return 1;
         if (key == 'q' || key == 'Q' || key == KEY_ESCAPE)
-            return 0;   /* Quit */
-        usleep(50000);  /* 50ms polling delay */
+            return 0;
+        usleep(50000);
     }
 }
-
-/* ========================================================================== */
-/*                             MAIN ENTRY                                    */
-/* ========================================================================== */
 
 int main(void)
 {
     GameState state;
     int       key;
     int       play_again;
+    int       game_mode;
+    int       high_score;
+    int       level_result;
+    int       chosen_level;
 
-    /* ---- Initialize Core Systems ---- */
-    mem_init();          /* Set up the custom memory allocator   */
-    keyboard_init();     /* Switch terminal to raw mode          */
-    atexit(keyboard_restore);  /* Safety net: always restore terminal  */
+    mem_init();
+    keyboard_init();
+    random_init();
+    atexit(keyboard_restore);
 
-    /* ---- Welcome Screen ---- */
+    high_score = load_high_score();
+
     show_welcome_screen();
 
-    /* ---- Main Game Loop (supports replay) ---- */
     play_again = 1;
     while (play_again)
     {
-        /* Initialize a fresh game */
-        game_init(&state);
+        game_mode = show_mode_select();
 
-        /* Set up the screen */
+        /* For endless mode, let player pick the arena */
+        chosen_level = 0;
+        if (game_mode == MODE_ENDLESS)
+            chosen_level = show_endless_level_select();
+
+        game_init(&state);
+        state.game_mode = game_mode;
+        state.high_score = high_score;
+        game_apply_level(&state, chosen_level);
+
         screen_clear();
         screen_hide_cursor();
-        game_render_border();
+        game_render_border(&state);
+        game_render_obstacles(&state);
         game_render_full_snake(&state);
 
-        /* Draw initial food */
         screen_draw_char_color(state.food.position.x,
                                state.food.position.y,
                                state.food.symbol,
                                COLOR_BRIGHT_YELLOW);
         screen_flush();
 
-        /* ---- Frame Loop ---- */
-        /* Each iteration: read input -> update state -> render -> wait      */
         while (state.running)
         {
-            /* Read keyboard (non-blocking) */
             key = keyboard_pressed();
             if (key != KEY_NONE)
                 game_process_input(&state, key);
 
-            /* Advance game by one tick */
             game_update(&state);
 
-            /* Draw only what changed */
+            level_result = game_check_level_complete(&state);
+
+            if (level_result == 1)
+            {
+                /* Level mode: advance to next level */
+                show_level_complete(state.current_level);
+                state.current_level++;
+
+                if (state.current_level >= MAX_LEVELS)
+                {
+                    state.running = 0;
+                    break;
+                }
+
+                /* Reset snake position for new level, keep score */
+                {
+                    int saved_score = state.score;
+                    int saved_hs = state.high_score;
+                    int saved_mode = state.game_mode;
+                    int next_level = state.current_level;
+
+                    game_init(&state);
+                    state.score = saved_score;
+                    state.high_score = saved_hs;
+                    state.game_mode = saved_mode;
+                    game_apply_level(&state, next_level);
+                }
+
+                screen_clear();
+                screen_hide_cursor();
+                game_render_border(&state);
+                game_render_obstacles(&state);
+                game_render_full_snake(&state);
+                screen_flush();
+            }
+
             if (state.running)
                 game_render(&state);
 
-            /* Wait for next frame (~10 FPS) */
-            usleep(FRAME_DELAY_US);
+            timer_sleep_us(get_frame_delay(&state));
         }
 
-        /* ---- Game Over ---- */
-        usleep(500000);  /* Brief pause before showing game over */
-        play_again = show_game_over_screen(state.score);
+        if (state.score > high_score)
+        {
+            high_score = state.score;
+            save_high_score(high_score);
+        }
+
+        if (!state.snake.alive)
+        {
+            show_death_flash();
+            usleep(300000);
+        }
+
+        play_again = show_game_over_screen(state.score, high_score);
     }
 
-    /* ---- Cleanup ---- */
     screen_clear();
     screen_show_cursor();
     screen_move_cursor(1, 1);
