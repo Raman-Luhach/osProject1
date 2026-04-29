@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vasuki - The Serpent King</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="screen active">
+            <div class="title-art">
+                <h1 class="glow-text">VASUKI</h1>
+                <p class="subtitle">The Serpent King of Terminal</p>
+                <div class="snake-deco">~-~-~-~=&lt;@&gt;</div>
+            </div>
+            <div class="controls-box">
+                <div class="control-row"><span class="key">W A S D</span> Move Vasuki</div>
+                <div class="control-row"><span class="key">Arrows</span> Also Move</div>
+                <div class="control-row"><span class="key">P</span> Pause</div>
+                <div class="control-row"><span class="key">Q / ESC</span> Quit Game</div>
+            </div>
+            <div id="welcome-highscore" class="highscore-display"></div>
+            <div class="credit">Team Vasuki | OS Final Project</div>
+            <button id="btn-start" class="pulse-btn">Press ENTER to Start</button>
+        </div>
+
+        <!-- Mode Select Screen -->
+        <div id="mode-screen" class="screen">
+            <h2 class="screen-title">Select Game Mode</h2>
+            <div class="mode-options">
+                <div class="mode-card" data-mode="endless">
+                    <div class="mode-key">1</div>
+                    <h3>Endless Mode</h3>
+                    <p>Pick a level, speed increases over time. Survive as long as you can!</p>
+                </div>
+                <div class="mode-card" data-mode="levels">
+                    <div class="mode-key">2</div>
+                    <h3>Level Mode</h3>
+                    <p>5 levels with obstacles and goals. Reach the target score to advance!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Level Select Screen (Endless) -->
+        <div id="level-screen" class="screen">
+            <h2 class="screen-title">Choose Your Arena</h2>
+            <div class="level-options">
+                <div class="level-card" data-level="0">
+                    <div class="level-key">1</div>
+                    <h3>Wrap Around</h3>
+                    <p>No walls - go through edges. Easy start.</p>
+                </div>
+                <div class="level-card" data-level="1">
+                    <div class="level-key">2</div>
+                    <h3>Classic Walls</h3>
+                    <p>Hit a wall and you die. No obstacles.</p>
+                </div>
+                <div class="level-card" data-level="2">
+                    <div class="level-key">3</div>
+                    <h3>Horizontal Barrier</h3>
+                    <p>A wall cuts across the middle.</p>
+                </div>
+                <div class="level-card" data-level="3">
+                    <div class="level-key">4</div>
+                    <h3>Twin Pillars + Wrap</h3>
+                    <p>Two vertical walls with wrap-around.</p>
+                </div>
+                <div class="level-card" data-level="4">
+                    <div class="level-key">5</div>
+                    <h3>The Box</h3>
+                    <p>Box obstacle in center. No wrap. Fast.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div id="game-hud">
+                <div class="hud-left">
+                    <span id="hud-score">Score: 0</span>
+                    <span id="hud-length">Len: 3</span>
+                    <span id="hud-combo" class="hidden"></span>
+                </div>
+                <div class="hud-center">
+                    <span id="hud-level"></span>
+                </div>
+                <div class="hud-right">
+                    <span id="hud-highscore">Best: 0</span>
+                    <span id="hud-goal" class="hidden"></span>
+                </div>
+            </div>
+            <div id="canvas-wrapper">
+                <canvas id="game-canvas"></canvas>
+                <div id="pause-overlay" class="hidden">
+                    <div class="pause-text">PAUSED</div>
+                    <div class="pause-sub">Press P to resume</div>
+                </div>
+                <div id="level-complete-overlay" class="hidden">
+                    <div class="level-complete-text"></div>
+                </div>
+            </div>
+            <div id="game-controls">
+                <span>[W/A/S/D] Move</span>
+                <span>[P] Pause</span>
+                <span>[Q] Quit</span>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameover-screen" class="screen">
+            <h1 class="gameover-title">GAME OVER</h1>
+            <div class="dead-snake">x~-~-~-~=&lt;X&gt; Vasuki has fallen...</div>
+            <div class="final-scores">
+                <div class="score-row">
+                    <span>Your Score:</span>
+                    <span id="final-score" class="score-value">0</span>
+                </div>
+                <div class="score-row">
+                    <span>High Score:</span>
+                    <span id="final-highscore" class="score-value">0</span>
+                </div>
+                <div id="new-highscore" class="hidden">*** NEW HIGH SCORE! ***</div>
+            </div>
+            <div class="gameover-buttons">
+                <button id="btn-replay" class="action-btn green">Play Again [ENTER]</button>
+                <button id="btn-quit" class="action-btn red">Quit [Q]</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="particles-container"></div>
+
+    <script src="vasuki.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
