@@ -1,26 +1,18 @@
-# ============================================================================
-#                        VASUKI - Terminal Snake Game
-#                              Git Ignore Rules
-# ============================================================================
-
-# ---- Compiled Output ----
+# Compiled output
 vasuki
 *.o
 
-# ---- macOS System Files ----
-.DS_Store
-.AppleDouble
-.LSOverride
+# Runtime generated
+.vasuki_highscore
 
-# ---- IDE / Editor Files ----
+# macOS
+.DS_Store
+
+# IDE
 .vscode/
 .idea/
 *.swp
-*.swo
 *~
-*.sublime-project
-*.sublime-workspace
 
-# ---- Debug Files ----
+# Debug
 *.dSYM/
-*.dSYM
