@@ -1,8 +1,26 @@
-# Vasuki - Terminal Snake Game
+# Vasuki - The Serpent King of Terminal
 
-A real-time Snake game built entirely in C from scratch, using **custom-written libraries** — no `<string.h>`, `<math.h>`, or default `malloc()`/`free()`.
+A real-time Snake game built entirely in C from scratch, using **custom-written libraries** — no `<string.h>`, `<math.h>`, or default `malloc()`/`free()`. Playable in the terminal and in the browser via WebAssembly.
 
-**Operating Systems Final Capstone Project.**
+---
+
+## Screenshots
+
+### Terminal
+
+| Welcome Screen | Gameplay | Game Over |
+|:-:|:-:|:-:|
+| ![Welcome](photos/terminal/welcome.png) | ![Gameplay](photos/terminal/gameplay.png) | ![Game Over](photos/terminal/gameover.png) |
+
+### Web (WebAssembly)
+
+| Welcome Screen | Mode Selection |
+|:-:|:-:|
+| ![Welcome](photos/web/welcome.png) | ![Mode Select](photos/web/mode-select.png) |
+
+| Gameplay | Game Over |
+|:-:|:-:|
+| ![Gameplay](photos/web/gameplay.png) | ![Game Over](photos/web/gameover.png) |
 
 ---
 
